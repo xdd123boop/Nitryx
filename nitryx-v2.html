@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nitryx — Detector de Estafas</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #060910;
+  --bg2:      #0b0f1a;
+  --bg3:      #101620;
+  --bg4:      #161d2a;
+  --cyan:     #00e5ff;
+  --cyan2:    #00b4cc;
+  --red:      #ff3b5c;
+  --orange:   #ff8c00;
+  --yellow:   #ffd600;
+  --green:    #00e676;
+  --border:   rgba(0,229,255,0.1);
+  --border2:  rgba(0,229,255,0.2);
+  --text:     #c8dce8;
+  --dim:      #3d5a6e;
+  --mono:     'Space Mono', monospace;
+  --body:     'Barlow', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanlines */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
+  pointer-events: none;
+  z-index: 999;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── HEADER ─────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,9,16,0.97);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.logo svg { width: 28px; height: 28px; }
+
+.logo-text { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; letter-spacing: 0.2em; color: var(--cyan); }
+.logo-sub  { font-family: var(--mono); font-size: 0.55rem; color: var(--dim); letter-spacing: 0.1em; }
+
+.version {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* ── HERO ────────────────────────────────── */
+.hero {
+  text-align: center;
+  padding: 2.5rem 1.2rem 1.5rem;
+  position: relative;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.4;
+  mask-image: radial-gradient(ellipse 80% 100% at 50% 0%, black 30%, transparent 100%);
+}
+
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--cyan);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.8rem;
+  opacity: 0;
+  animation: fadeUp 0.5s 0.1s forwards;
+}
+
+.hero-title {
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.6rem;
+  opacity: 0;
+  animation: fadeUp 0.5s 0.2s forwards;
+}
+
+.hero-title .accent { color: var(--cyan); }
+
+.hero-sub {
+  font-size: 0.85rem;
+  color: var(--dim);
+  max-width: 320px;
+  margin: 0 auto 1.5rem;
+  opacity: 0;
+  animation: fadeUp 0.5s 0.3s forwards;
+}
+
+/* ── MAIN ────────────────────────────────── */
+.main {
+  padding: 0 1.2rem 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── INPUT PANEL ─────────────────────────── */
+.input-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  animation: fadeUp 0.5s 0.35s both;
+}
+
+.input-panel:focus-within {
+  border-color: var(--cyan2);
+  box-shadow: 0 0 20px rgba(0,229,255,0.1);
+}
+
+.input-top {
+  padding: 0.7rem 1rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.input-label { font-family: var(--mono); font-size: 0.6rem; color: var(--dim); letter-spacing: 0.12em; }
+
+.mode-tabs {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.mode-tab {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode-tab.active {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(0,229,255,0.06);
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+textarea::placeholder { color: var(--dim); opacity: 0.7; }
+
+.input-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg3);
+  gap: 0.5rem;
+}
+
+.char-count { font-family: var(--mono); font-size: 0.6rem; color: var(--dim); }
+
+.btn-row { display: flex; gap: 0.4rem; }
+
+.btn-ghost {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--dim); }
+
+.btn-main {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--cyan);
+  color: #000;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.15s;
+}
+.btn-main:hover { opacity: 0.88; box-shadow: 0 0 16px rgba(0,229,255,0.3); }
+.btn-main:active { transform: scale(0.97); }
+.btn-main:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── DEMOS RÁPIDOS ───────────────────────── */
+.demos {
+  animation: fadeUp 0.5s 0.4s both;
+}
+
+.demos-label {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  margin-bottom: 0.5rem;
+}
+
+.demo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border2);
+  border-radius: 99px;
+  background: var(--bg2);
+  color: var(--dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover { color: var(--cyan); border-color: var(--cyan); }
+.chip.chip-red    { border-color: rgba(255,59,92,0.3);  color: rgba(255,59,92,0.7); }
+.chip.chip-orange { border-color: rgba(255,140,0,0.3);  color: rgba(255,140,0,0.7); }
+.chip.chip-yellow { border-color: rgba(255,214,0,0.3);  color: rgba(255,214,0,0.7); }
+
+/* ── LOADING ─────────────────────────────── */
+.loading {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.loading.show { display: flex; }
+
+.dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: blink 1.2s infinite;
+  margin: 0 2px;
+}
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+  0%,100% { opacity: 0.2; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ── RESULT PANEL ────────────────────────── */
+.result {
+  display: none;
+  flex-direction: column;
+  gap: 0.8rem;
+  animation: fadeUp 0.4s forwards;
+}
+.result.show { display: flex; }
+
+/* Riesgo principal */
+.risk-banner {
+  border-radius: 10px;
+  padding: 1.2rem;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.risk-banner.critical { background: rgba(255,59,92,0.07);  border-color: rgba(255,59,92,0.3); }
+.risk-banner.high     { background: rgba(255,140,0,0.07);  border-color: rgba(255,140,0,0.3); }
+.risk-banner.medium   { background: rgba(255,214,0,0.06);  border-color: rgba(255,214,0,0.25); }
+.risk-banner.low      { background: rgba(0,230,118,0.06);  border-color: rgba(0,230,118,0.25); }
+
+.risk-emoji { font-size: 2rem; flex-shrink: 0; }
+
+.risk-info { flex: 1; }
+.risk-label { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.01em; }
+.risk-banner.critical .risk-label { color: var(--red); }
+.risk-banner.high     .risk-label { color: var(--orange); }
+.risk-banner.medium   .risk-label { color: var(--yellow); }
+.risk-banner.low      .risk-label { color: var(--green); }
+
+.risk-desc { font-size: 0.78rem; color: var(--dim); margin-top: 2px; }
+
+.score-box {
+  text-align: center;
+  flex-shrink: 0;
+}
+.score-num {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.risk-banner.critical .score-num { color: var(--red); }
+.risk-banner.high     .score-num { color: var(--orange); }
+.risk-banner.medium   .score-num { color: var(--yellow); }
+.risk-banner.low      .score-num { color: var(--green); }
+.score-label { font-family: var(--mono); font-size: 0.55rem; color: var(--dim); }
+
+/* Señales */
+.signals-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.signals-title {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+
+.signal-item {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+  animation: fadeUp 0.3s both;
+}
+.signal-item:last-child { border-bottom: none; }
+
+.signal-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.dot-high   { background: var(--red);    box-shadow: 0 0 6px var(--red); }
+.dot-medium { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.dot-low    { background: var(--dim); }
+
+.signal-body { flex: 1; }
+.signal-name { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.signal-detail {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--dim);
+  margin-top: 3px;
+  word-break: break-all;
+}
+
+/* Explicación simple */
+.explain-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.explain-title {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+
+.explain-body {
+  padding: 0.9rem 1rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.explain-body strong { color: var(--cyan); }
+
+/* Consejos */
+.advice-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.advice-title {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+
+.advice-item {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+.advice-item:last-child { border-bottom: none; }
+.advice-arrow { color: var(--cyan); flex-shrink: 0; }
+
+/* Acciones */
+.result-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── FOOTER ──────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--dim);
+  border-top: 1px solid var(--border);
+  letter-spacing: 0.08em;
+}
+
+/* ── ANIMACIONES ─────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-6px); }
+  40%     { transform: translateX(6px); }
+  60%     { transform: translateX(-4px); }
+  80%     { transform: translateX(4px); }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <svg viewBox="0 0 28 28" fill="none">
+      <polygon points="14,2 24,8 24,20 14,26 4,20 4,8"
+        fill="rgba(0,229,255,0.08)" stroke="#00e5ff" stroke-width="1.2"/>
+      <polygon points="14,7 20,10.5 20,17.5 14,21 8,17.5 8,10.5"
+        fill="rgba(0,229,255,0.15)"/>
+    </svg>
+    <div>
+      <div class="logo-text">NITRYX</div>
+      <div class="logo-sub">// detector de estafas</div>
+    </div>
+  </div>
+  <div class="version">v2.0</div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <p class="hero-tag">// análisis en tiempo real</p>
+  <h1 class="hero-title">Detecta estafas<br/>antes de <span class="accent">caer</span></h1>
+  <p class="hero-sub">Pega cualquier mensaje, link o nombre de archivo sospechoso.</p>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- INPUT -->
+  <div class="input-panel">
+    <div class="input-top">
+      <span class="input-label">// pega aquí</span>
+      <div class="mode-tabs">
+        <button class="mode-tab active" onclick="setMode(this,'mensaje')">Mensaje</button>
+        <button class="mode-tab" onclick="setMode(this,'link')">Link</button>
+        <button class="mode-tab" onclick="setMode(this,'archivo')">Archivo</button>
+      </div>
+    </div>
+    <textarea id="inputText" maxlength="2000"
+      placeholder="Ej: ¡Ganaste Nitro gratis! Haz clic aquí..."></textarea>
+    <div class="input-bottom">
+      <span class="char-count" id="charCount">0 / 2000</span>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="clearAll()">Limpiar</button>
+        <button class="btn-main" id="analyzeBtn" onclick="runAnalysis()">Analizar →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEMOS RÁPIDOS -->
+  <div class="demos">
+    <div class="demos-label">// ejemplos para probar</div>
+    <div class="demo-chips">
+      <span class="chip chip-red"    onclick="loadDemo(0)">🚨 Nitro falso Discord</span>
+      <span class="chip chip-red"    onclick="loadDemo(1)">🚨 Imagen .exe</span>
+      <span class="chip chip-orange" onclick="loadDemo(2)">⚠️ Phishing bancario</span>
+      <span class="chip chip-orange" onclick="loadDemo(3)">⚠️ Steam scam</span>
+      <span class="chip chip-yellow" onclick="loadDemo(4)">🟡 Urgencia falsa</span>
+      <span class="chip"             onclick="loadDemo(5)">✅ Mensaje normal</span>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading" id="loading">
+    <div class="dots"><span></span><span></span><span></span></div>
+    Analizando…
+  </div>
+
+  <!-- RESULTADO -->
+  <div class="result" id="result">
+
+    <!-- Banner de riesgo -->
+    <div class="risk-banner" id="riskBanner">
+      <div class="risk-emoji" id="riskEmoji"></div>
+      <div class="risk-info">
+        <div class="risk-label" id="riskLabel"></div>
+        <div class="risk-desc" id="riskDesc"></div>
+      </div>
+      <div class="score-box">
+        <div class="score-num" id="scoreNum">0</div>
+        <div class="score-label">/ 100</div>
+      </div>
+    </div>
+
+    <!-- Señales -->
+    <div class="signals-card" id="signalsCard">
+      <div class="signals-title">// señales detectadas</div>
+      <div id="signalsList"></div>
+    </div>
+
+    <!-- Explicación simple -->
+    <div class="explain-card">
+      <div class="explain-title">// qué significa esto</div>
+      <div class="explain-body" id="explainBody"></div>
+    </div>
+
+    <!-- Consejos -->
+    <div class="advice-card">
+      <div class="advice-title">// qué hacer ahora</div>
+      <div id="adviceList"></div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="result-actions">
+      <button class="btn-ghost" style="flex:1" onclick="copyResult()">Copiar resultado</button>
+      <button class="btn-ghost" style="flex:1" onclick="clearAll()">Nuevo análisis</button>
+    </div>
+
+  </div>
+
+</main>
+
+<footer class="footer">
+  ⬡ NITRYX v2.0 — Sin recopilación de datos · Todo se analiza localmente
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DEMOS
+// ═══════════════════════════════════════════════════
+const DEMOS = [
+  // 0 — Nitro falso Discord
+  "¡Felicidades! Has sido seleccionado para recibir Discord Nitro GRATIS por 1 año. Reclama ahora antes de que expire: http://discordapp-nitro.gift/claim?user=289341",
+  // 1 — Imagen .exe
+  "foto_vacaciones.jpg.exe",
+  // 2 — Phishing bancario
+  "URGENTE: Tu cuenta bancaria ha sido suspendida por actividad sospechosa. Ingresa tus datos y contraseña aquí para reactivarla: http://banco-seguro-login.ru/verificar",
+  // 3 — Steam scam
+  "Hey! Vota por mi equipo en este torneo de CS2 y te regalo skins gratis. Solo entra con tu cuenta Steam: http://steamcommunity-trade.tk/vote",
+  // 4 — Urgencia falsa
+  "¡¡¡ACTÚA YA!!! Tu cuenta será ELIMINADA en 24 horas si no verificas tu información. Haz clic INMEDIATAMENTE antes de que sea demasiado tarde!!!",
+  // 5 — Normal
+  "Hola! Quedamos mañana a las 7pm en el café de siempre? Avísame si puedes.",
+];
+
+const PLACEHOLDERS = [
+  "Ej: ¡Ganaste Nitro gratis! Haz clic aquí...",
+  "Ej: https://dominio-sospechoso.tk/login",
+  "Ej: foto.jpg.exe  o  documento.pdf.bat",
+];
+
+let currentMode = "mensaje";
+
+function setMode(btn, mode) {
+  document.querySelectorAll(".mode-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentMode = mode;
+  document.getElementById("inputText").placeholder = PLACEHOLDERS[
+    mode === "mensaje" ? 0 : mode === "link" ? 1 : 2
+  ];
+}
+
+function loadDemo(i) {
+  document.getElementById("inputText").value = DEMOS[i];
+  updateChar();
+  clearResult();
+}
+
+// ═══════════════════════════════════════════════════
+// ANALIZADOR PRINCIPAL
+// ═══════════════════════════════════════════════════
+
+// ── Palabras clave ──────────────────────────────
+const KEYWORDS = [
+  { words: ["urgente","urgent","inmediato","act now","expira","vence","last chance","actúa ya"], weight: 18, label: "Lenguaje de urgencia artificial", sev: "medium",
+    explain: "Los estafadores crean sensación de urgencia para que actúes sin pensar." },
+  { words: ["cuenta suspendida","account suspended","será eliminada","será bloqueada","action required","acción requerida"], weight: 25, label: "Amenaza falsa de cuenta", sev: "high",
+    explain: "Las empresas reales nunca te amenazan con eliminar tu cuenta por mensaje." },
+  { words: ["ganaste","winner","ganador","premio","gratis","free nitro","nitro gratis","seleccionado","elegido"], weight: 28, label: "Premio o regalo falso", sev: "high",
+    explain: "Nadie regala cosas de valor por mensajes. Es una trampa para robar tus datos." },
+  { words: ["ingresa tu contraseña","enter your password","verify your account","confirma tu clave","login to confirm","ingresa tus datos"], weight: 32, label: "Solicitud de contraseña", sev: "high",
+    explain: "NUNCA te pedirán tu contraseña por mensaje. Esto siempre es un intento de robo." },
+  { words: ["número de tarjeta","datos bancarios","cvv","transferencia","wire transfer","bitcoin","cripto","wallet address"], weight: 38, label: "Solicitud de datos financieros", sev: "high",
+    explain: "Ninguna empresa legítima pide datos bancarios por mensaje o link." },
+  { words: ["vota por mi equipo","vote for my team","skins gratis","items gratis","free skins","torneo"], weight: 30, label: "Estafa de votación / Steam", sev: "high",
+    explain: "Clásica estafa de Steam: te piden votar a cambio de skins y roban tu cuenta." },
+];
+
+// ── Extensiones peligrosas disfrazadas ──────────
+const DANGEROUS_EXTENSIONS = [
+  { pattern: /\.(jpg|jpeg|png|gif|pdf|mp4|mp3|doc|docx)\.(exe|bat|scr|vbs|pif|cmd|com|msi|ps1)$/i,
+    label: "Archivo disfrazado (MUY PELIGROSO)", sev: "high", weight: 95,
+    explain: "Este archivo finge ser una imagen o documento pero en realidad es un programa que puede tomar control de tu PC. NUNCA lo abras." },
+  { pattern: /\.(exe|bat|scr|vbs|pif|cmd|com|msi|ps1)$/i,
+    label: "Archivo ejecutable sospechoso", sev: "high", weight: 55,
+    explain: "Los archivos .exe, .bat y similares pueden instalar programas en tu PC sin que lo sepas." },
+  { pattern: /\.(exe|bat|scr|vbs|pif)\s*$/i,
+    label: "Extensión ejecutable detectada", sev: "high", weight: 50,
+    explain: "Este tipo de archivo puede ejecutarse en tu PC y hacer cambios sin tu permiso." },
+];
+
+// ── URLs y dominios ─────────────────────────────
+const URL_PATTERNS = [
+  { pattern: /discord[_\-\.]?(app|nitro|gift|free|gratis)[.\-]/i, label: "Dominio falso de Discord", sev: "high", weight: 90,
+    explain: "El dominio oficial de Discord es discord.com y discord.gg. Cualquier variación es una estafa." },
+  { pattern: /steamcommunity[_\-\.]|steam[_\-\.](trade|gift|free)/i, label: "Dominio falso de Steam", sev: "high", weight: 85,
+    explain: "El dominio oficial de Steam es store.steampowered.com. Este link es falso." },
+  { pattern: /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/i, label: "URL con dirección IP directa", sev: "high", weight: 45,
+    explain: "Los sitios legítimos usan nombres de dominio, no IPs. Esto es señal de un sitio fraudulento." },
+  { pattern: /bit\.ly|tinyurl|t\.co|ow\.ly|rb\.gy|cutt\.ly/i, label: "URL acortada (destino oculto)", sev: "medium", weight: 22,
+    explain: "Las URLs acortadas ocultan el destino real. Los estafadores las usan para disimular links peligrosos." },
+  { pattern: /\.(tk|ml|ga|cf|gq|ru|xyz|top)\//i, label: "Dominio de alto riesgo", sev: "high", weight: 35,
+    explain: "Estos dominios son casi gratuitos y muy usados para crear sitios de estafa desechables." },
+  { pattern: /(paypal|netflix|amazon|apple|microsoft|google|banco|bank).*\.(tk|ml|ru|xyz|top|ga)/i, label: "Suplantación de marca conocida", sev: "high", weight: 90,
+    explain: "Este sitio finge ser una empresa conocida pero el dominio es completamente falso." },
+  { pattern: /http:\/\//i, label: "Conexión sin cifrado (HTTP)", sev: "low", weight: 12,
+    explain: "Los sitios seguros usan HTTPS. Un sitio con solo HTTP no cifra tu información." },
+  { pattern: /login|verify|secure|account|update|confirm.*\.(tk|ml|ru|xyz|ga)/i, label: "Página de login falsa", sev: "high", weight: 80,
+    explain: "Este link lleva a una página que imita un login real para robar tu contraseña." },
+];
+
+// ── Estilo del texto ────────────────────────────
+const STYLE_CHECKS = [
+  { test: t => (t.match(/!/g)||[]).length >= 3, weight: 10, label: "Exceso de signos de exclamación", sev: "low",
+    explain: "Los estafadores usan muchos signos de exclamación para crear pánico o emoción falsa." },
+  { test: t => t.length > 15 && t === t.toUpperCase(), weight: 12, label: "Texto completamente en mayúsculas", sev: "low",
+    explain: "Las mayúsculas constantes son una técnica para llamar la atención y crear urgencia falsa." },
+  { test: t => (t.match(/\?{2,}|!{2,}/g)||[]).length >= 2, weight: 8, label: "Puntuación exagerada", sev: "low",
+    explain: "La puntuación exagerada (!!!, ???) es un clásico de los mensajes de estafa." },
+];
+
+// ═══════════════════════════════════════════════════
+// FUNCIÓN PRINCIPAL DE ANÁLISIS
+// ═══════════════════════════════════════════════════
+function analyze(input) {
+  const signals = [];
+  let score = 0;
+  const lower = input.toLowerCase().trim();
+  const urls = input.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+
+  // 1. Extensiones peligrosas (mayor prioridad)
+  for (const check of DANGEROUS_EXTENSIONS) {
+    if (check.pattern.test(input.trim())) {
+      score += check.weight;
+      signals.push({ label: check.label, detail: input.trim(), sev: check.sev, explain: check.explain });
+      break;
+    }
+  }
+
+  // 2. Palabras clave
+  for (const k of KEYWORDS) {
+    const matched = k.words.filter(w => lower.includes(w));
+    if (matched.length) {
+      score += k.weight * Math.min(matched.length, 2);
+      signals.push({ label: k.label, detail: `"${matched[0]}"`, sev: k.sev, explain: k.explain });
+    }
+  }
+
+  // 3. URLs
+  for (const url of urls) {
+    for (const p of URL_PATTERNS) {
+      if (p.pattern.test(url)) {
+        score += p.weight;
+        signals.push({ label: p.label, detail: url.length > 55 ? url.slice(0,55)+"…" : url, sev: p.sev, explain: p.explain });
+      }
+    }
+  }
+
+  // 4. Estilo
+  for (const s of STYLE_CHECKS) {
+    if (s.test(input)) {
+      score += s.weight;
+      signals.push({ label: s.label, detail: "", sev: s.sev, explain: s.explain });
+    }
+  }
+
+  // Deduplicar señales
+  const seen = new Set();
+  const unique = signals.filter(s => { if (seen.has(s.label)) return false; seen.add(s.label); return true; });
+
+  const capped = Math.min(score, 100);
+
+  // Nivel de riesgo
+  let level, emoji, labelText, desc, advice, explain;
+
+  if (capped >= 70) {
+    level = "critical"; emoji = "🚨"; labelText = "Riesgo Muy Alto";
+    desc = "Contenido extremadamente peligroso detectado.";
+    explain = buildExplain(unique, capped, "critical");
+    advice = [
+      "No hagas clic en ningún link de este mensaje.",
+      "No abras ningún archivo que te hayan enviado.",
+      "No ingreses ningún dato personal ni contraseña.",
+      "Reporta el mensaje y bloquea al remitente.",
+      "Si ya abriste algo, desconecta el WiFi y avisa a alguien.",
+    ];
+  } else if (capped >= 40) {
+    level = "high"; emoji = "⚠️"; labelText = "Riesgo Alto";
+    desc = "Varias señales de alerta detectadas.";
+    explain = buildExplain(unique, capped, "high");
+    advice = [
+      "No hagas clic en los links sin verificar antes.",
+      "Contacta directamente a la empresa por su web oficial.",
+      "No descargues archivos adjuntos de este mensaje.",
+    ];
+  } else if (capped >= 15) {
+    level = "medium"; emoji = "🟡"; labelText = "Riesgo Moderado";
+    desc = "Algunas señales sospechosas detectadas.";
+    explain = buildExplain(unique, capped, "medium");
+    advice = [
+      "Ten precaución con este contenido.",
+      "Verifica que el remitente sea quien dice ser.",
+      "No compartas información personal.",
+    ];
+  } else {
+    level = "low"; emoji = "✅"; labelText = "Sin riesgo detectado";
+    desc = "No se encontraron señales de estafa.";
+    explain = "Este mensaje no presenta señales típicas de estafa o phishing. Aun así, usa siempre el sentido común — ningún análisis automático es 100% infalible.";
+    advice = [
+      "Mantén siempre buenas prácticas de seguridad.",
+      "Desconfía de mensajes de desconocidos aunque parezcan normales.",
+    ];
+  }
+
+  return { score: capped, level, emoji, labelText, desc, signals: unique, explain, advice };
+}
+
+// Genera explicación en lenguaje simple
+function buildExplain(signals, score, level) {
+  if (!signals.length) return "No se detectaron señales claras de amenaza.";
+
+  const top = signals.find(s => s.sev === "high") || signals[0];
+  let base = top.explain;
+
+  if (level === "critical") {
+    base += " <strong>Esto es una estafa.</strong> No interactúes con este contenido bajo ninguna circunstancia.";
+  } else if (level === "high") {
+    base += " Procede con mucha cautela y verifica la fuente antes de hacer cualquier cosa.";
+  }
+
+  return base;
+}
+
+// ═══════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════
+const inputEl  = document.getElementById("inputText");
+const resultEl = document.getElementById("result");
+const loadEl   = document.getElementById("loading");
+
+inputEl.addEventListener("input", updateChar);
+
+function updateChar() {
+  const len = inputEl.value.length;
+  document.getElementById("charCount").textContent = `${len} / 2000`;
+}
+
+function runAnalysis() {
+  const input = inputEl.value.trim();
+  if (!input) { shakeInput(); return; }
+
+  clearResult();
+  loadEl.classList.add("show");
+  document.getElementById("analyzeBtn").disabled = true;
+
+  // Pequeño delay para que se vea el loading
+  setTimeout(() => {
+    const r = analyze(input);
+    loadEl.classList.remove("show");
+    showResult(r);
+    document.getElementById("analyzeBtn").disabled = false;
+  }, 600);
+}
+
+function showResult(r) {
+  // Banner
+  const banner = document.getElementById("riskBanner");
+  banner.className = "risk-banner " + r.level;
+  document.getElementById("riskEmoji").textContent  = r.emoji;
+  document.getElementById("riskLabel").textContent  = r.labelText;
+  document.getElementById("riskDesc").textContent   = r.desc;
+  document.getElementById("scoreNum").textContent   = r.score;
+
+  // Señales
+  const list = document.getElementById("signalsList");
+  list.innerHTML = r.signals.length
+    ? r.signals.map((s, i) => `
+        <div class="signal-item" style="animation-delay:${i*0.06}s">
+          <div class="signal-dot dot-${s.sev}"></div>
+          <div class="signal-body">
+            <div class="signal-name">${s.label}</div>
+            ${s.detail ? `<div class="signal-detail">${s.detail}</div>` : ""}
+          </div>
+        </div>`)
+      .join("")
+    : `<div class="signal-item"><div class="signal-body"><div class="signal-name" style="color:var(--green)">✅ Sin señales de amenaza</div></div></div>`;
+
+  // Explicación
+  document.getElementById("explainBody").innerHTML = r.explain;
+
+  // Consejos
+  document.getElementById("adviceList").innerHTML = r.advice
+    .map(a => `<div class="advice-item"><span class="advice-arrow">→</span>${a}</div>`)
+    .join("");
+
+  resultEl.classList.add("show");
+  resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function clearResult() {
+  resultEl.classList.remove("show");
+  document.getElementById("signalsList").innerHTML = "";
+}
+
+function clearAll() {
+  inputEl.value = "";
+  updateChar();
+  clearResult();
+  loadEl.classList.remove("show");
+}
+
+function shakeInput() {
+  const panel = document.querySelector(".input-panel");
+  panel.style.animation = "none";
+  panel.offsetHeight;
+  panel.style.animation = "shake 0.35s";
+  setTimeout(() => panel.style.animation = "", 350);
+}
+
+let lastResult = null;
+
+function copyResult() {
+  const label = document.getElementById("riskLabel").textContent;
+  const score = document.getElementById("scoreNum").textContent;
+  const signals = [...document.querySelectorAll(".signal-name")].map(el => `• ${el.textContent}`).join("\n");
+  const text = `[NITRYX] Análisis de seguridad\nRiesgo: ${label} (${score}/100)\n\nSeñales:\n${signals}\n\nGenerado por Nitryx v2.0`;
+  navigator.clipboard?.writeText(text).catch(() => {});
+  const btn = document.querySelector('[onclick="copyResult()"]');
+  btn.textContent = "¡Copiado!";
+  setTimeout(() => btn.textContent = "Copiar resultado", 2000);
+}
+
+// Tecla Enter + Ctrl
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "Enter") runAnalysis();
+});
+</script>
+</body>
+</html>
